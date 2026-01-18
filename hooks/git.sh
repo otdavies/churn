@@ -35,15 +35,27 @@ churn_git() {
             git log --oneline -n "$count" 2>/dev/null
             ;;
         memory-path)
-            local project_dir=$(ls -td "$HOME/.claude"/projects/*/ 2>/dev/null | head -1)
+            # Get project dir from CWD, not most-recent (which is unreliable)
+            local cwd="${PWD:-$(pwd)}"
+            local project_encoded=$(echo "$cwd" | sed 's|/|-|g')
+            local project_dir="$HOME/.claude/projects/$project_encoded"
+
+            if [[ ! -d "$project_dir" ]]; then
+                # Fallback: try most recent (legacy behavior)
+                project_dir=$(ls -td "$HOME/.claude"/projects/*/ 2>/dev/null | head -1)
+            fi
+
             if [[ -z "$project_dir" ]]; then
                 return 1
             fi
+
             local branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
             if [[ -n "$branch" && "$branch" != "HEAD" ]]; then
-                echo "${project_dir}memory/branches/${branch}/working.md"
+                # Sanitize branch name for filesystem (replace / with -)
+                local safe_branch=$(echo "$branch" | sed 's|/|-|g')
+                echo "${project_dir}/memory/branches/${safe_branch}/working.md"
             else
-                echo "${project_dir}memory/working.md"
+                echo "${project_dir}/memory/working.md"
             fi
             ;;
         save-original)
@@ -56,8 +68,100 @@ churn_git() {
         clear-original)
             rm -f "$CHURN_GIT_ORIGINAL_FILE" 2>/dev/null
             ;;
+        detect-build)
+            # Detect build command for current project
+            if [[ -f "package.json" ]]; then
+                if grep -q '"typecheck"' package.json 2>/dev/null; then
+                    echo "npm run typecheck"
+                elif grep -q '"build"' package.json 2>/dev/null; then
+                    echo "npm run build"
+                else
+                    echo "npm run build"
+                fi
+            elif [[ -f "Cargo.toml" ]]; then
+                echo "cargo check"
+            elif [[ -f "go.mod" ]]; then
+                echo "go build ./..."
+            elif [[ -f "Makefile" ]]; then
+                if grep -q '^check:' Makefile 2>/dev/null; then
+                    echo "make check"
+                else
+                    echo "make build"
+                fi
+            elif [[ -f "pyproject.toml" ]] || [[ -f "setup.py" ]]; then
+                echo "python -m py_compile"
+            else
+                echo ""
+            fi
+            ;;
+        detect-test)
+            # Detect test command for current project
+            if [[ -f "package.json" ]]; then
+                if grep -q '"test"' package.json 2>/dev/null; then
+                    echo "npm test"
+                fi
+            elif [[ -f "Cargo.toml" ]]; then
+                echo "cargo test"
+            elif [[ -f "go.mod" ]]; then
+                echo "go test ./..."
+            elif [[ -f "Makefile" ]]; then
+                if grep -q '^test:' Makefile 2>/dev/null; then
+                    echo "make test"
+                fi
+            elif [[ -f "pyproject.toml" ]] || [[ -f "setup.py" ]]; then
+                echo "pytest"
+            else
+                echo ""
+            fi
+            ;;
+        detect-lint)
+            # Detect lint command for current project
+            if [[ -f "package.json" ]]; then
+                if grep -q '"lint"' package.json 2>/dev/null; then
+                    echo "npm run lint"
+                fi
+            elif [[ -f "Cargo.toml" ]]; then
+                echo "cargo clippy"
+            elif [[ -f "go.mod" ]]; then
+                echo "golangci-lint run"
+            elif [[ -f "pyproject.toml" ]] || [[ -f "setup.py" ]]; then
+                echo "ruff check ."
+            else
+                echo ""
+            fi
+            ;;
+        validate)
+            # Run validation and return status + output
+            local build_cmd
+            build_cmd=$(bash "$0" detect-build)
+
+            if [[ -z "$build_cmd" ]]; then
+                echo "build: skip (no build command detected)"
+                return 0
+            fi
+
+            echo "running: $build_cmd"
+            local output
+            local exit_code
+            output=$($build_cmd 2>&1) && exit_code=0 || exit_code=$?
+
+            if [[ $exit_code -eq 0 ]]; then
+                echo "build: PASS"
+            else
+                echo "build: FAIL (exit $exit_code)"
+                echo "---"
+                echo "$output" | head -20
+            fi
+            return $exit_code
+            ;;
+        project-path)
+            # Get project memory directory from CWD
+            local cwd="${PWD:-$(pwd)}"
+            local project_encoded=$(echo "$cwd" | sed 's|/|-|g')
+            echo "$HOME/.claude/projects/$project_encoded"
+            ;;
         help)
-            echo "Git utilities: check, branch, changes, commit, diff-summary, log, memory-path, save-original, original, clear-original, help"
+            echo "Git utilities: check, branch, changes, commit, diff-summary, log, memory-path, save-original, original, clear-original, detect-build, detect-test, detect-lint, validate, project-path, help"
             ;;
         *)
             echo "Unknown git action: $action" >&2
@@ -65,3 +169,8 @@ churn_git() {
             ;;
     esac
 }
+
+# Run if called directly (not sourced)
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    churn_git "$@"
+fi

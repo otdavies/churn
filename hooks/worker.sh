@@ -52,7 +52,10 @@ case "$ACTION" in
 
     # Get loop counter
     loop)
-        PROJECT_DIR=$(ls -td "$CLAUDE_DIR"/projects/*/ 2>/dev/null | head -1)
+        PROJECT_DIR=$(bash ~/.claude/memory-hooks/git.sh project-path 2>/dev/null)
+        if [[ -z "$PROJECT_DIR" ]]; then
+            PROJECT_DIR=$(ls -td "$CLAUDE_DIR"/projects/*/ 2>/dev/null | head -1)
+        fi
         LOOP_FILE="$PROJECT_DIR/memory/.loop"
         if [[ -f "$LOOP_FILE" ]]; then
             cat "$LOOP_FILE"
@@ -63,7 +66,10 @@ case "$ACTION" in
 
     # Increment loop counter
     next)
-        PROJECT_DIR=$(ls -td "$CLAUDE_DIR"/projects/*/ 2>/dev/null | head -1)
+        PROJECT_DIR=$(bash ~/.claude/memory-hooks/git.sh project-path 2>/dev/null)
+        if [[ -z "$PROJECT_DIR" ]]; then
+            PROJECT_DIR=$(ls -td "$CLAUDE_DIR"/projects/*/ 2>/dev/null | head -1)
+        fi
         LOOP_FILE="$PROJECT_DIR/memory/.loop"
         mkdir -p "$(dirname "$LOOP_FILE")"
         CURRENT=$(cat "$LOOP_FILE" 2>/dev/null || echo "0")
