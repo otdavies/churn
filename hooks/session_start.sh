@@ -78,9 +78,23 @@ fi
 if [[ -n "$PROJECT_MEMORY_DIR" ]]; then
     mkdir -p "$PROJECT_MEMORY_DIR"
 
-    # Create working.md if it doesn't exist
-    if [[ ! -f "$PROJECT_MEMORY_DIR/working.md" ]]; then
-        cat > "$PROJECT_MEMORY_DIR/working.md" << 'EOF'
+    # Get branch-scoped working.md path
+    WORKING_MD=""
+    if [[ -n "$CWD" ]]; then
+        BRANCH_PATH=$(cd "$CWD" 2>/dev/null && bash ~/.claude/memory-hooks/git.sh memory-path 2>/dev/null || echo "")
+        if [[ -n "$BRANCH_PATH" && -f "$BRANCH_PATH" ]]; then
+            WORKING_MD="$BRANCH_PATH"
+        fi
+    fi
+    # Fallback to main working.md
+    if [[ -z "$WORKING_MD" && -f "$PROJECT_MEMORY_DIR/working.md" ]]; then
+        WORKING_MD="$PROJECT_MEMORY_DIR/working.md"
+    fi
+
+    # Create default working.md if nothing exists
+    if [[ -z "$WORKING_MD" ]]; then
+        WORKING_MD="$PROJECT_MEMORY_DIR/working.md"
+        cat > "$WORKING_MD" << 'EOF'
 # Working
 
 ## Preserved
@@ -88,9 +102,9 @@ EOF
     fi
 
     # Load working memory into context
-    if [[ -f "$PROJECT_MEMORY_DIR/working.md" ]]; then
+    if [[ -f "$WORKING_MD" ]]; then
         CONTEXT+="## Working Memory (preserved turns)\n"
-        CONTEXT+=$(cat "$PROJECT_MEMORY_DIR/working.md")
+        CONTEXT+=$(cat "$WORKING_MD")
         CONTEXT+="\n\n"
     fi
 fi

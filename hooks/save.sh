@@ -5,7 +5,6 @@
 
 set -euo pipefail
 
-CLAUDE_DIR="$HOME/.claude"
 PRESERVE="${1:-}"
 
 if [[ -z "$PRESERVE" ]]; then
@@ -13,16 +12,12 @@ if [[ -z "$PRESERVE" ]]; then
     exit 1
 fi
 
-# Find current project from most recent transcript
-TRANSCRIPT=$(ls -t "$CLAUDE_DIR"/projects/*/*.jsonl 2>/dev/null | head -1)
-if [[ -z "$TRANSCRIPT" ]]; then
-    echo "err: no transcript"
+# Get branch-scoped working.md path from git.sh
+WORKING_FILE=$(bash ~/.claude/memory-hooks/git.sh memory-path)
+if [[ -z "$WORKING_FILE" ]]; then
+    echo "err: could not determine memory path"
     exit 1
 fi
-
-# Extract project dir
-PROJECT_DIR=$(dirname "$TRANSCRIPT")
-WORKING_FILE="$PROJECT_DIR/memory/working.md"
 mkdir -p "$(dirname "$WORKING_FILE")"
 
 # Append to working memory (not overwrite)

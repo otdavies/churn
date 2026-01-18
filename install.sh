@@ -44,6 +44,7 @@ cp "$SCRIPT_DIR/hooks/session_end.sh" "$HOOKS_DIR/"
 cp "$SCRIPT_DIR/hooks/status.sh" "$HOOKS_DIR/"
 cp "$SCRIPT_DIR/hooks/save.sh" "$HOOKS_DIR/"
 cp "$SCRIPT_DIR/hooks/worker.sh" "$HOOKS_DIR/"
+cp "$SCRIPT_DIR/hooks/git.sh" "$HOOKS_DIR/"
 chmod +x "$HOOKS_DIR"/*.sh
 
 # Copy commands (skills)
@@ -105,7 +106,7 @@ echo "Installation complete!"
 echo ""
 echo "Memory system installed. On your next Claude Code session:"
 echo "  - Self-model and sticky memory loaded at start"
-echo "  - /churn command for long tasks (Ralph loop pattern)"
+echo "  - /churn command for iterative refinement loops"
 echo "  - save() to persist important context to working.md"
 echo "  - Compaction uses ultra-compressed shorthand"
 echo ""

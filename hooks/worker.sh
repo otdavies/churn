@@ -1,5 +1,5 @@
 #!/bin/bash
-# Ralph Loop Worker - spawns focused subagents with minimal context
+# Churn Worker - spawns focused subagents with minimal context
 # Usage: Called by Claude to spawn worker agents
 #
 # This script doesn't do the spawning - Claude does that via Task tool.
@@ -28,20 +28,19 @@ case "$ACTION" in
             fi
         fi
 
-        # Working memory
-        PROJECT_DIR=$(ls -td "$CLAUDE_DIR"/projects/*/ 2>/dev/null | head -1)
-        if [[ -n "$PROJECT_DIR" && -f "$PROJECT_DIR/memory/working.md" ]]; then
+        # Working memory (branch-scoped)
+        WORKING_FILE=$(bash ~/.claude/memory-hooks/git.sh memory-path 2>/dev/null)
+        if [[ -n "$WORKING_FILE" && -f "$WORKING_FILE" ]]; then
             echo ""
             echo "### Working"
-            cat "$PROJECT_DIR/memory/working.md"
+            cat "$WORKING_FILE"
         fi
         ;;
 
     # Save worker result
     result)
         RESULT="$1"
-        PROJECT_DIR=$(ls -td "$CLAUDE_DIR"/projects/*/ 2>/dev/null | head -1)
-        WORKING_FILE="$PROJECT_DIR/memory/working.md"
+        WORKING_FILE=$(bash ~/.claude/memory-hooks/git.sh memory-path 2>/dev/null)
         mkdir -p "$(dirname "$WORKING_FILE")"
 
         # Append to working memory
@@ -70,6 +69,21 @@ case "$ACTION" in
         CURRENT=$(cat "$LOOP_FILE" 2>/dev/null || echo "0")
         echo $((CURRENT + 1)) > "$LOOP_FILE"
         echo $((CURRENT + 1))
+        ;;
+
+    # Get git state summary
+    git-state)
+        if ! command -v git &>/dev/null; then
+            echo "branch: n/a | uncommitted: n/a"
+            exit 0
+        fi
+        if ! git rev-parse --git-dir &>/dev/null 2>&1; then
+            echo "branch: n/a | uncommitted: n/a"
+            exit 0
+        fi
+        BRANCH=$(git branch --show-current 2>/dev/null || echo "detached")
+        UNCOMMITTED=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+        echo "branch: $BRANCH | uncommitted: $UNCOMMITTED files"
         ;;
 
     *)
