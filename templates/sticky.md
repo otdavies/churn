@@ -1,9 +1,0 @@
-# Sticky
-
-## Pref
-
-## Arch
-
-## Learn
-
-## ✗

@@ -57,7 +57,7 @@ fi
 
 # Ask about memory files
 echo ""
-read -p "Preserve memory files (self-model, sticky, index)? [Y/n] " -n 1 -r
+read -p "Preserve memory files (self-model, flagged, index)? [Y/n] " -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Nn]$ ]]; then
     echo "Removing memory files..."

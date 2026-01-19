@@ -1,6 +1,6 @@
 #!/bin/bash
 # Gentler Memory - Session Start Hook
-# Injects self-model + sticky memory into context at session start
+# Injects self-model + flagged items into context at session start
 
 set -euo pipefail
 
@@ -43,40 +43,11 @@ if [[ -f "$MEMORY_DIR/self-model.md" ]]; then
     CONTEXT+="\n\n"
 fi
 
-# Load project sticky memory
-if [[ -n "$PROJECT_MEMORY_DIR" && -f "$PROJECT_MEMORY_DIR/sticky.md" ]]; then
-    CONTEXT+="## Sticky Memory (this project)\n"
-    CONTEXT+=$(cat "$PROJECT_MEMORY_DIR/sticky.md")
-    CONTEXT+="\n\n"
-fi
-
 # Load flagged items (extracted from previous compactions)
 if [[ -n "$PROJECT_MEMORY_DIR" && -f "$PROJECT_MEMORY_DIR/flagged.md" ]]; then
     CONTEXT+="## Flagged Items (survived compaction)\n"
     CONTEXT+=$(cat "$PROJECT_MEMORY_DIR/flagged.md")
     CONTEXT+="\n\n"
-fi
-
-# Load tasks index
-TASKS_DIR="$MEMORY_DIR/tasks"
-if [[ -f "$TASKS_DIR/index.md" ]]; then
-    CONTEXT+="## Tasks\n"
-    CONTEXT+=$(cat "$TASKS_DIR/index.md")
-    CONTEXT+="\n\n"
-fi
-
-# Load current task context if set
-if [[ -f "$TASKS_DIR/current.md" ]]; then
-    CURRENT_TASK=$(grep -o 'id: *[^ ]*' "$TASKS_DIR/current.md" 2>/dev/null | sed 's/id: *//' | head -1)
-    if [[ -n "$CURRENT_TASK" && "$CURRENT_TASK" != "none" ]]; then
-        # Find and load the task file
-        TASK_FILE=$(find "$TASKS_DIR" -name "${CURRENT_TASK}*.md" -type f 2>/dev/null | head -1)
-        if [[ -f "$TASK_FILE" ]]; then
-            CONTEXT+="## Current Task\n"
-            CONTEXT+=$(cat "$TASK_FILE")
-            CONTEXT+="\n\n"
-        fi
-    fi
 fi
 
 # Load recent session index (last 5 entries)
@@ -129,7 +100,7 @@ if [[ -n "$PROJECT_MEMORY_DIR" ]]; then
         [[ -f "$f" ]] && [[ $(wc -c < "$f") -gt $MAX_FILE_SIZE ]] && PRUNE_NEEDED+="$(basename "$f") "
     done
 fi
-for f in "$MEMORY_DIR"/*.md "$TASKS_DIR"/*.md; do
+for f in "$MEMORY_DIR"/*.md; do
     [[ -f "$f" ]] && [[ $(wc -c < "$f") -gt $MAX_FILE_SIZE ]] && PRUNE_NEEDED+="$(basename "$f") "
 done
 
@@ -140,12 +111,8 @@ fi
 # Available tools for memory management
 CONTEXT+="\n## Memory Tools\n"
 CONTEXT+="- save(content): bash ~/.claude/memory-hooks/save.sh \"content\" → persist to working.md\n"
-CONTEXT+="- status(): bash ~/.claude/memory-hooks/status.sh → check context size\n"
-CONTEXT+="- worker.sh state [task]: get curated state for subagent\n"
 CONTEXT+="- /churn N: run N iterations via subagents (you=loop, workers=do)\n"
-CONTEXT+="- Edit sticky.md: persist facts across sessions\n"
 CONTEXT+="- Edit working.md: direct edit for complex preservation\n"
-CONTEXT+="- Edit tasks/Txxx.md: multi-session task state\n"
 CONTEXT+="\n## Flag Syntax (auto-extracted at compaction)\n"
 CONTEXT+="Write these inline - they survive compaction:\n"
 CONTEXT+="- [FLAG:prompt] Original task/request\n"

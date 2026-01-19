@@ -222,17 +222,15 @@ if [[ -f "$TRANSCRIPT_PATH" ]]; then
 fi
 
 # Calculate memory stats
-STICKY_SIZE="0"
 WORKING_SIZE="0"
 if [[ -n "$PROJECT_MEMORY_DIR" ]]; then
-    [[ -f "$PROJECT_MEMORY_DIR/sticky.md" ]] && STICKY_SIZE=$(wc -c < "$PROJECT_MEMORY_DIR/sticky.md" | tr -d ' ')
     [[ -f "$PROJECT_MEMORY_DIR/working.md" ]] && WORKING_SIZE=$(wc -c < "$PROJECT_MEMORY_DIR/working.md" | tr -d ' ')
 fi
 SELF_SIZE="0"
 [[ -f "$MEMORY_DIR/self-model.md" ]] && SELF_SIZE=$(wc -c < "$MEMORY_DIR/self-model.md" | tr -d ' ')
 
-TOTAL_KB=$(echo "scale=1; ($STICKY_SIZE + $WORKING_SIZE + $SELF_SIZE) / 1024" | bc)
-STATUS="mem preserved: ${TOTAL_KB}kb (self:${SELF_SIZE}b sticky:${STICKY_SIZE}b working:${WORKING_SIZE}b)"
+TOTAL_KB=$(echo "scale=1; ($WORKING_SIZE + $SELF_SIZE) / 1024" | bc)
+STATUS="mem preserved: ${TOTAL_KB}kb (self:${SELF_SIZE}b working:${WORKING_SIZE}b)"
 
 # Build final system message with snapshot diff if available
 FINAL_MESSAGE="$SHORTHAND_INSTRUCTIONS"

@@ -54,7 +54,7 @@ To run all iterations as Work mode (no Review alternation), use the `--linear` f
 
 At churn start:
 ```bash
-bash ~/.claude/commands/git.sh branch "churn-$(date +%s)"
+bash ~/.claude/memory-hooks/git.sh branch "churn-$(date +%s)"
 ```
 
 Track branch name in state. Subagents commit their changes (see prompt template).
@@ -185,7 +185,7 @@ YOUR JOB:
 3. Choose the MOST IMPORTANT thing to work on right now
 4. Do ONE focused task
 5. Update docs/CHURN_PLAN.md (check off task, add notes)
-6. Commit: bash ~/.claude/commands/git.sh commit "churn [N]: [what you did]"
+6. Commit: bash ~/.claude/memory-hooks/git.sh commit "churn [N]: [what you did]"
 7. Return: "DONE: [what you did] | NEXT: [what's most important now]"
 
 PRIORITY RULES:
@@ -229,7 +229,7 @@ If drift requires significant work, note it for the next Work iteration.
 Update docs/CHURN_PLAN.md with observations.
 
 If you made changes:
-Commit: bash ~/.claude/commands/git.sh commit "churn [N]: review - [what you fixed]"
+Commit: bash ~/.claude/memory-hooks/git.sh commit "churn [N]: review - [what you fixed]"
 
 Return format:
 ALIGNED: [what's on track]

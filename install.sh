@@ -24,7 +24,6 @@ fi
 # Create directories
 echo "Creating directories..."
 mkdir -p "$MEMORY_DIR"
-mkdir -p "$MEMORY_DIR/tasks"
 mkdir -p "$HOOKS_DIR"
 mkdir -p "$COMMANDS_DIR"
 
@@ -32,23 +31,18 @@ mkdir -p "$COMMANDS_DIR"
 echo "Installing templates..."
 cp "$SCRIPT_DIR/templates/self-model.md" "$MEMORY_DIR/"
 cp "$SCRIPT_DIR/templates/global-index.md" "$MEMORY_DIR/"
-cp "$SCRIPT_DIR/templates/flagged.md" "$MEMORY_DIR/"  # Template for flagged items
-cp "$SCRIPT_DIR/templates/tasks/index.md" "$MEMORY_DIR/tasks/"
-cp "$SCRIPT_DIR/templates/tasks/current.md" "$MEMORY_DIR/tasks/"
-cp "$SCRIPT_DIR/templates/tasks/TEMPLATE.md" "$MEMORY_DIR/tasks/"
+cp "$SCRIPT_DIR/templates/flagged.md" "$MEMORY_DIR/"
 
 # Copy hooks and make executable
 echo "Installing hooks..."
 cp "$SCRIPT_DIR/hooks/session_start.sh" "$HOOKS_DIR/"
 cp "$SCRIPT_DIR/hooks/pre_compact.sh" "$HOOKS_DIR/"
 cp "$SCRIPT_DIR/hooks/session_end.sh" "$HOOKS_DIR/"
-cp "$SCRIPT_DIR/hooks/status.sh" "$HOOKS_DIR/"
 cp "$SCRIPT_DIR/hooks/save.sh" "$HOOKS_DIR/"
-cp "$SCRIPT_DIR/hooks/worker.sh" "$HOOKS_DIR/"
 cp "$SCRIPT_DIR/hooks/git.sh" "$HOOKS_DIR/"
-cp "$SCRIPT_DIR/hooks/snapshot.sh" "$HOOKS_DIR/"  # Shadow repo snapshot tool
-cp "$SCRIPT_DIR/hooks/trace.sh" "$HOOKS_DIR/"     # Trace extraction tool
-cp "$SCRIPT_DIR/hooks/query.sh" "$HOOKS_DIR/"     # Memory query tool
+cp "$SCRIPT_DIR/hooks/snapshot.sh" "$HOOKS_DIR/"
+cp "$SCRIPT_DIR/hooks/trace.sh" "$HOOKS_DIR/"
+cp "$SCRIPT_DIR/hooks/query.sh" "$HOOKS_DIR/"
 chmod +x "$HOOKS_DIR"/*.sh
 
 # Copy commands (skills)
@@ -111,7 +105,7 @@ echo ""
 echo "Installation complete!"
 echo ""
 echo "Memory system installed. On your next Claude Code session:"
-echo "  - Self-model and sticky memory loaded at start"
+echo "  - Self-model and flagged items loaded at start"
 echo "  - /churn command for iterative refinement loops"
 echo "  - save() to persist important context to working.md"
 echo "  - Compaction uses ultra-compressed shorthand"
