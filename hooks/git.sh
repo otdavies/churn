@@ -160,8 +160,155 @@ churn_git() {
             local project_encoded=$(echo "$cwd" | sed 's|/|-|g')
             echo "$HOME/.claude/projects/$project_encoded"
             ;;
+
+        # ============================================
+        # CHURN LIFECYCLE ACTIONS
+        # ============================================
+
+        churn-base)
+            # Find the commit before the first churn commit on this branch
+            # Returns the parent of the first "churn [" commit
+            local first_churn_hash
+            first_churn_hash=$(git log --oneline --reverse --grep="^churn \[" 2>/dev/null | head -1 | cut -d' ' -f1)
+
+            if [[ -n "$first_churn_hash" ]]; then
+                # Get parent of first churn commit
+                local base
+                base=$(git rev-parse "${first_churn_hash}^" 2>/dev/null)
+                if [[ -n "$base" ]]; then
+                    echo "$base"
+                    return 0
+                fi
+            fi
+
+            # Fallback: try to find merge-base with main/master
+            local main_branch
+            if git rev-parse --verify main &>/dev/null; then
+                main_branch="main"
+            elif git rev-parse --verify master &>/dev/null; then
+                main_branch="master"
+            else
+                echo "error: cannot determine base commit" >&2
+                return 1
+            fi
+
+            git merge-base "$main_branch" HEAD 2>/dev/null
+            ;;
+
+        churn-commits)
+            # List all commits since base for summarization
+            local base="$1"
+            if [[ -z "$base" ]]; then
+                base=$(bash "$0" churn-base 2>/dev/null)
+            fi
+
+            if [[ -z "$base" ]]; then
+                echo "error: no base commit found" >&2
+                return 1
+            fi
+
+            git log --oneline "$base"..HEAD 2>/dev/null
+            ;;
+
+        finalize)
+            # Squash all commits since base into one
+            local base="$1"
+            local message="$2"
+
+            if [[ -z "$base" || -z "$message" ]]; then
+                echo "error: finalize requires base commit and message" >&2
+                return 1
+            fi
+
+            # Check for uncommitted changes
+            if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+                echo "error: uncommitted changes - commit or stash first" >&2
+                return 1
+            fi
+
+            # Store recovery point
+            local recovery_hash
+            recovery_hash=$(git rev-parse HEAD)
+            echo "$recovery_hash" > /tmp/churn_recovery_$$
+
+            # Soft reset to base, then commit with new message
+            git reset --soft "$base" 2>/dev/null || {
+                echo "error: git reset failed" >&2
+                return 1
+            }
+
+            git commit -m "$message" 2>/dev/null || {
+                echo "error: git commit failed" >&2
+                # Attempt recovery
+                git reset --hard "$recovery_hash" 2>/dev/null
+                return 1
+            }
+
+            local new_hash
+            new_hash=$(git rev-parse --short HEAD)
+            echo "squashed: $new_hash (recovery: $recovery_hash)"
+            ;;
+
+        rename-branch)
+            # Rename current branch
+            local new_name="$1"
+
+            if [[ -z "$new_name" ]]; then
+                echo "error: rename-branch requires new name" >&2
+                return 1
+            fi
+
+            local current
+            current=$(git branch --show-current 2>/dev/null)
+
+            if [[ -z "$current" ]]; then
+                echo "error: not on a branch" >&2
+                return 1
+            fi
+
+            git branch -m "$current" "$new_name" 2>/dev/null && echo "renamed: $current → $new_name"
+            ;;
+
+        abort-finalize)
+            # Restore from recovery point
+            local recovery_file="/tmp/churn_recovery_$$"
+
+            if [[ -f "$recovery_file" ]]; then
+                local hash
+                hash=$(cat "$recovery_file")
+                git reset --hard "$hash" 2>/dev/null && {
+                    rm -f "$recovery_file"
+                    echo "restored: $hash"
+                }
+            else
+                echo "error: no recovery point found" >&2
+                return 1
+            fi
+            ;;
+
+        churn-state)
+            # Get current churn state for working.md
+            local branch
+            branch=$(git branch --show-current 2>/dev/null)
+
+            if [[ "$branch" == churn/* ]]; then
+                local base
+                base=$(bash "$0" churn-base 2>/dev/null)
+                local commit_count
+                commit_count=$(git rev-list --count "${base}..HEAD" 2>/dev/null || echo "0")
+                echo "churn-branch: $branch"
+                echo "churn-base: ${base:0:8}"
+                echo "churn-commits: $commit_count"
+            else
+                echo "not on churn branch"
+            fi
+            ;;
+
         help)
-            echo "Git utilities: check, branch, changes, commit, diff-summary, log, memory-path, save-original, original, clear-original, detect-build, detect-test, detect-lint, validate, project-path, help"
+            echo "Git utilities: check, branch, changes, commit, diff-summary, log, memory-path,"
+            echo "  save-original, original, clear-original, detect-build, detect-test, detect-lint,"
+            echo "  validate, project-path, churn-base, churn-commits, finalize, rename-branch,"
+            echo "  abort-finalize, churn-state, help"
             ;;
         *)
             echo "Unknown git action: $action" >&2

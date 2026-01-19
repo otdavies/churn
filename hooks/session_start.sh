@@ -20,6 +20,11 @@ if [[ "$SOURCE" != "startup" ]]; then
     exit 0
 fi
 
+# Capture initial project snapshot (shadow repo, does not touch project git)
+if [[ -n "$CWD" ]]; then
+    bash ~/.claude/memory-hooks/snapshot.sh capture session-start "$CWD" 2>/dev/null || true
+fi
+
 # Encode project path for directory name (same as Claude Code does)
 if [[ -n "$CWD" ]]; then
     PROJECT_ENCODED=$(echo "$CWD" | sed 's|/|-|g')
@@ -42,6 +47,13 @@ fi
 if [[ -n "$PROJECT_MEMORY_DIR" && -f "$PROJECT_MEMORY_DIR/sticky.md" ]]; then
     CONTEXT+="## Sticky Memory (this project)\n"
     CONTEXT+=$(cat "$PROJECT_MEMORY_DIR/sticky.md")
+    CONTEXT+="\n\n"
+fi
+
+# Load flagged items (extracted from previous compactions)
+if [[ -n "$PROJECT_MEMORY_DIR" && -f "$PROJECT_MEMORY_DIR/flagged.md" ]]; then
+    CONTEXT+="## Flagged Items (survived compaction)\n"
+    CONTEXT+=$(cat "$PROJECT_MEMORY_DIR/flagged.md")
     CONTEXT+="\n\n"
 fi
 
@@ -134,7 +146,20 @@ CONTEXT+="- /churn N: run N iterations via subagents (you=loop, workers=do)\n"
 CONTEXT+="- Edit sticky.md: persist facts across sessions\n"
 CONTEXT+="- Edit working.md: direct edit for complex preservation\n"
 CONTEXT+="- Edit tasks/Txxx.md: multi-session task state\n"
-CONTEXT+="[!] Use /churn for long tasks. save() what matters before compaction.\n"
+CONTEXT+="\n## Flag Syntax (auto-extracted at compaction)\n"
+CONTEXT+="Write these inline - they survive compaction:\n"
+CONTEXT+="- [FLAG:prompt] Original task/request\n"
+CONTEXT+="- [FLAG:progress] Current status and remaining work\n"
+CONTEXT+="- [FLAG:decision] Key choices with rationale\n"
+CONTEXT+="- [FLAG:diff] Important file changes (file:lines - description)\n"
+CONTEXT+="- [FLAG:blocker] Issues preventing progress\n"
+CONTEXT+="- [FLAG:note] Other important context\n"
+CONTEXT+="\n## Query Past Reasoning (when uncertain)\n"
+CONTEXT+="- query.sh grep \"pattern\": Search all past traces\n"
+CONTEXT+="- query.sh file [path]: What was I thinking about this file?\n"
+CONTEXT+="- query.sh confused \"question\": Guided search for uncertainty\n"
+CONTEXT+="- query.sh recent 5: Show 5 most recent traces\n"
+CONTEXT+="[!] When uncertain, search before assuming. Past traces often contain forgotten context.\n"
 
 # Context budget: cap at 4KB
 MAX_CONTEXT=4096

@@ -63,6 +63,111 @@ if [[ -f "$MEMORY_DIR/self-model.md" ]]; then
     rm -f "$MEMORY_DIR/self-model.md.bak"
 fi
 
+# ============================================
+# FLAG EXTRACTION: Extract [FLAG:type] markers from transcript
+# ============================================
+if [[ -n "$PROJECT_MEMORY_DIR" && -f "$TRANSCRIPT_PATH" ]]; then
+    FLAGGED_FILE="$PROJECT_MEMORY_DIR/flagged.md"
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
+
+    # Create flagged.md from template if missing
+    if [[ ! -f "$FLAGGED_FILE" ]]; then
+        cat > "$FLAGGED_FILE" << 'FLAGTEMPLATE'
+# Flagged Items
+
+## Prompt
+
+## Progress
+
+## Decisions
+
+## Diffs
+
+## Blockers
+
+## Notes
+FLAGTEMPLATE
+    fi
+
+    # Extract flags from transcript (looking in assistant messages)
+    EXTRACTED_FLAGS=$(grep -oE '\[FLAG:[a-z]+\][^\n]*' "$TRANSCRIPT_PATH" 2>/dev/null || true)
+
+    if [[ -n "$EXTRACTED_FLAGS" ]]; then
+        # Process each flag
+        while IFS= read -r flag_line; do
+            [[ -z "$flag_line" ]] && continue
+
+            # Parse type and content
+            FLAG_TYPE=$(echo "$flag_line" | sed 's/\[FLAG:\([a-z]*\)\].*/\1/')
+            FLAG_CONTENT=$(echo "$flag_line" | sed 's/\[FLAG:[a-z]*\] *//')
+
+            case "$FLAG_TYPE" in
+                prompt)
+                    # Overwrite - replace entire Prompt section
+                    sed -i.bak "/^## Prompt$/,/^## /{/^## Prompt$/!{/^## /!d}}" "$FLAGGED_FILE"
+                    sed -i.bak "s|^## Prompt$|## Prompt\n[$TIMESTAMP] $FLAG_CONTENT|" "$FLAGGED_FILE"
+                    ;;
+                progress)
+                    # Overwrite - replace entire Progress section
+                    sed -i.bak "/^## Progress$/,/^## /{/^## Progress$/!{/^## /!d}}" "$FLAGGED_FILE"
+                    sed -i.bak "s|^## Progress$|## Progress\n[$TIMESTAMP] $FLAG_CONTENT|" "$FLAGGED_FILE"
+                    ;;
+                decision)
+                    # Append to Decisions, keep max 5 (FIFO)
+                    sed -i.bak "/^## Decisions$/a\\
+- [$TIMESTAMP] $FLAG_CONTENT" "$FLAGGED_FILE"
+                    # Prune to last 5 entries in Decisions section
+                    awk '/^## Decisions$/,/^## /{
+                        if(/^- /) { count++; lines[count]=$0 }
+                        else print
+                        if(/^## / && !/^## Decisions$/) {
+                            start = count > 5 ? count - 4 : 1
+                            for(i=start; i<=count; i++) print lines[i]
+                            count=0
+                            delete lines
+                        }
+                    }' "$FLAGGED_FILE" > "$FLAGGED_FILE.tmp" && mv "$FLAGGED_FILE.tmp" "$FLAGGED_FILE"
+                    ;;
+                diff)
+                    # Append to Diffs, keep max 10 (FIFO)
+                    sed -i.bak "/^## Diffs$/a\\
+- [$TIMESTAMP] $FLAG_CONTENT" "$FLAGGED_FILE"
+                    # Prune to last 10 entries
+                    awk '/^## Diffs$/,/^## /{
+                        if(/^- /) { count++; lines[count]=$0 }
+                        else print
+                        if(/^## / && !/^## Diffs$/) {
+                            start = count > 10 ? count - 9 : 1
+                            for(i=start; i<=count; i++) print lines[i]
+                            count=0
+                            delete lines
+                        }
+                    }' "$FLAGGED_FILE" > "$FLAGGED_FILE.tmp" && mv "$FLAGGED_FILE.tmp" "$FLAGGED_FILE"
+                    ;;
+                blocker)
+                    # Append to Blockers, keep max 5
+                    sed -i.bak "/^## Blockers$/a\\
+- [$TIMESTAMP] $FLAG_CONTENT" "$FLAGGED_FILE"
+                    ;;
+                note)
+                    # Append to Notes, keep max 5 (FIFO)
+                    sed -i.bak "/^## Notes$/a\\
+- [$TIMESTAMP] $FLAG_CONTENT" "$FLAGGED_FILE"
+                    # Prune to last 5 entries
+                    awk '/^## Notes$/,/^## |$/{
+                        if(/^- /) { count++; lines[count]=$0 }
+                        else print
+                    } END {
+                        start = count > 5 ? count - 4 : 1
+                        for(i=start; i<=count; i++) print lines[i]
+                    }' "$FLAGGED_FILE" > "$FLAGGED_FILE.tmp" && mv "$FLAGGED_FILE.tmp" "$FLAGGED_FILE"
+                    ;;
+            esac
+            rm -f "$FLAGGED_FILE.bak"
+        done <<< "$EXTRACTED_FLAGS"
+    fi
+fi
+
 # Build compaction instruction message (itself compressed)
 read -r -d '' SHORTHAND_INSTRUCTIONS << 'EOF' || true
 ## COMPACT MODE
@@ -86,6 +191,36 @@ AFTER: "impl JWT auth+refresh"
 Compress hard. working.md survives. You understand yourself.
 EOF
 
+# ============================================
+# SNAPSHOT: Capture project state and generate diff
+# ============================================
+SNAPSHOT_DIFF=""
+if [[ -n "$CWD" ]]; then
+    # Get current compaction number
+    COMPACT_NUM=$(cat "$CLAUDE_DIR/projects/$PROJECT_ENCODED/snapshots/state" 2>/dev/null || echo "0")
+    NEXT_COMPACT=$((COMPACT_NUM + 1))
+
+    # Capture current state
+    bash ~/.claude/memory-hooks/snapshot.sh capture "compact-$NEXT_COMPACT" "$CWD" 2>/dev/null || true
+
+    # Generate diff for injection
+    SNAPSHOT_DIFF=$(bash ~/.claude/memory-hooks/snapshot.sh inject "$CWD" 2>/dev/null || true)
+fi
+
+# ============================================
+# TRACE EXTRACTION: Extract reasoning from transcript
+# ============================================
+if [[ -f "$TRANSCRIPT_PATH" ]]; then
+    # Extract session ID from transcript path
+    TRACE_SESSION_ID=$(basename "$TRANSCRIPT_PATH" .jsonl | cut -c1-8)
+
+    # Extract traces in background (non-blocking)
+    bash ~/.claude/memory-hooks/trace.sh extract "$TRACE_SESSION_ID" 2>/dev/null &
+
+    # Update index
+    bash ~/.claude/memory-hooks/trace.sh index 2>/dev/null || true
+fi
+
 # Calculate memory stats
 STICKY_SIZE="0"
 WORKING_SIZE="0"
@@ -99,6 +234,14 @@ SELF_SIZE="0"
 TOTAL_KB=$(echo "scale=1; ($STICKY_SIZE + $WORKING_SIZE + $SELF_SIZE) / 1024" | bc)
 STATUS="mem preserved: ${TOTAL_KB}kb (self:${SELF_SIZE}b sticky:${STICKY_SIZE}b working:${WORKING_SIZE}b)"
 
-# Output JSON with shorthand instructions
-ESCAPED=$(echo "$SHORTHAND_INSTRUCTIONS" | jq -Rs .)
+# Build final system message with snapshot diff if available
+FINAL_MESSAGE="$SHORTHAND_INSTRUCTIONS"
+if [[ -n "$SNAPSHOT_DIFF" ]]; then
+    FINAL_MESSAGE+="
+
+$SNAPSHOT_DIFF"
+fi
+
+# Output JSON with shorthand instructions and snapshot diff
+ESCAPED=$(echo "$FINAL_MESSAGE" | jq -Rs .)
 echo "{\"continue\": true, \"reason\": \"$STATUS\", \"systemMessage\": $ESCAPED}"

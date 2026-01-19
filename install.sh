@@ -32,6 +32,7 @@ mkdir -p "$COMMANDS_DIR"
 echo "Installing templates..."
 cp "$SCRIPT_DIR/templates/self-model.md" "$MEMORY_DIR/"
 cp "$SCRIPT_DIR/templates/global-index.md" "$MEMORY_DIR/"
+cp "$SCRIPT_DIR/templates/flagged.md" "$MEMORY_DIR/"  # Template for flagged items
 cp "$SCRIPT_DIR/templates/tasks/index.md" "$MEMORY_DIR/tasks/"
 cp "$SCRIPT_DIR/templates/tasks/current.md" "$MEMORY_DIR/tasks/"
 cp "$SCRIPT_DIR/templates/tasks/TEMPLATE.md" "$MEMORY_DIR/tasks/"
@@ -45,11 +46,16 @@ cp "$SCRIPT_DIR/hooks/status.sh" "$HOOKS_DIR/"
 cp "$SCRIPT_DIR/hooks/save.sh" "$HOOKS_DIR/"
 cp "$SCRIPT_DIR/hooks/worker.sh" "$HOOKS_DIR/"
 cp "$SCRIPT_DIR/hooks/git.sh" "$HOOKS_DIR/"
+cp "$SCRIPT_DIR/hooks/snapshot.sh" "$HOOKS_DIR/"  # Shadow repo snapshot tool
+cp "$SCRIPT_DIR/hooks/trace.sh" "$HOOKS_DIR/"     # Trace extraction tool
+cp "$SCRIPT_DIR/hooks/query.sh" "$HOOKS_DIR/"     # Memory query tool
 chmod +x "$HOOKS_DIR"/*.sh
 
 # Copy commands (skills)
 echo "Installing commands..."
 cp "$SCRIPT_DIR/commands/churn.md" "$COMMANDS_DIR/" || { echo "Error: Failed to copy churn.md"; exit 1; }
+cp "$SCRIPT_DIR/commands/churn-done.md" "$COMMANDS_DIR/" || { echo "Warning: churn-done.md not found"; }
+cp "$SCRIPT_DIR/commands/churn-push.md" "$COMMANDS_DIR/" || { echo "Warning: churn-push.md not found"; }
 if [[ ! -f "$COMMANDS_DIR/churn.md" ]]; then
     echo "Error: churn.md not found at $COMMANDS_DIR/churn.md after copy"
     exit 1
